@@ -186,39 +186,52 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function handleStreamPayload(payload, ui, onToken) {
-    const evt = payload.event;
+    const evt = payload.event || payload.type;
     const data = payload.data;
+    if (!evt) return;
 
     switch (evt) {
       case 'stage':
-        addThinkingStep(ui.thinkingBody, data.text, true);
+      case 'status': {
+        const text = typeof data === 'string' ? data : (data?.text || data?.message || '');
+        if (text) addThinkingStep(ui.thinkingBody, text, true);
         break;
+      }
 
       case 'router':
-        if (!data.needs_search) {
-          addThinkingStep(ui.thinkingBody, `Direct answer: ${data.reason}`, false);
+        if (!data?.needs_search) {
+          addThinkingStep(ui.thinkingBody, `Direct answer: ${data?.reason || 'Conversational'}`, false);
         } else {
           addThinkingStep(ui.thinkingBody, `Analyzing intent: Web research required`, false);
         }
         break;
 
-      case 'queries':
-        if (data.angles && data.angles.length > 0) {
-          addThinkingStep(ui.thinkingBody, `Searching across ${data.angles.length} perspectives: ${data.angles.join(' • ')}`, false);
+      case 'queries': {
+        const angles = data?.angles || data?.queries || [];
+        if (angles.length > 0) {
+          addThinkingStep(ui.thinkingBody, `Searching across ${angles.length} perspectives: ${angles.join(' • ')}`, false);
         }
         break;
+      }
 
-      case 'scraped_page':
-        addThinkingStep(ui.thinkingBody, `Read source: ${data.title || data.url}`, false);
+      case 'source':
+      case 'scraped_page': {
+        const title = data?.title || data?.url || 'Source record';
+        addThinkingStep(ui.thinkingBody, `Read source: ${title}`, false);
         break;
+      }
 
-      case 'token':
-        onToken(data);
+      case 'token': {
+        const tokenStr = typeof data === 'string' ? data : (data?.text || '');
+        if (tokenStr) onToken(tokenStr);
         break;
+      }
 
-      case 'error':
-        addThinkingStep(ui.thinkingBody, `Error encountered: ${data}`, true);
+      case 'error': {
+        const errMsg = typeof data === 'string' ? data : (data?.message || JSON.stringify(data));
+        addThinkingStep(ui.thinkingBody, `Error encountered: ${errMsg}`, true);
         break;
+      }
     }
   }
 

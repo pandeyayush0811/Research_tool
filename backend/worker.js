@@ -317,9 +317,9 @@ export default {
       const writer = writable.getWriter();
       const encoder = new TextEncoder();
 
-      async function sendSSE(type, data) {
+      async function sendSSE(evt_type, data) {
         try {
-          const payload = JSON.stringify({ type, data });
+          const payload = JSON.stringify({ event: evt_type, type: evt_type, data });
           await writer.write(encoder.encode(`data: ${payload}\n\n`));
         } catch (e) {}
       }
