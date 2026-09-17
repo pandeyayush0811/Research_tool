@@ -288,7 +288,10 @@ export default {
 
       ctx.waitUntil((async () => {
         try {
-          const history = SESSIONS.get(sessionId) || [];
+          // Read client-driven conversation history from request payload with fallback to session cache
+          const history = (body.history && Array.isArray(body.history) && body.history.length > 0)
+            ? body.history
+            : (SESSIONS.get(sessionId) || []);
           
           // Phase 1: Tier 1 - Anonymous Guest Router (No Cookie -> Zero History Pollution)
           await sendSSE('stage', { text: 'Analyzing query & conversation context...' });
@@ -317,16 +320,30 @@ export default {
             return;
           }
 
-          // Phase 2: Formulate 5-7 Search Perspectives
-          const angles = (route.search_angles && route.search_angles.length >= 3)
-            ? route.search_angles.slice(0, settings.MAX_SEARCH_ANGLES || 7)
-            : [
-                `${query} top rated recommendations`,
-                `best similar alternatives like ${query}`,
-                `hidden gems and psychological thrillers like ${query}`,
-                `${query} mystery survival show comparisons`,
-                `community discussion and must watch series like ${query}`
-              ];
+          // Phase 2: Formulate 5-7 Search Perspectives with Smart Auto-Expansion
+          let angles = (route.search_angles && Array.isArray(route.search_angles))
+            ? [...route.search_angles]
+            : [];
+
+          // Auto-expand/pad to guaranteed minimum 5 angles if AI generated fewer
+          if (angles.length < 5) {
+            const base = route.standalone_query || query;
+            const extraTemplates = [
+              `${base} top rated recommendations`,
+              `best similar alternatives like ${base}`,
+              `hidden gems and psychological thrillers like ${base}`,
+              `${base} mystery survival show comparisons`,
+              `community discussion and must watch series like ${base}`,
+              `critically acclaimed rankings and reviews for ${base}`
+            ];
+            for (const tpl of extraTemplates) {
+              if (angles.length >= 5) break;
+              if (!angles.includes(tpl)) {
+                angles.push(tpl);
+              }
+            }
+          }
+          angles = angles.slice(0, settings.MAX_SEARCH_ANGLES || 7);
 
           await sendSSE('queries', { angles, queries: angles });
 

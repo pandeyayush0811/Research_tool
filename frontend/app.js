@@ -13,6 +13,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   let isGenerating = false;
   let currentSessionId = 'claude_session_' + Date.now();
+  let conversationHistory = [];
 
   marked.setOptions({
     highlight: function(code, lang) {
@@ -45,6 +46,7 @@ document.addEventListener('DOMContentLoaded', () => {
     conversation.innerHTML = '';
     emptyHero.style.display = 'block';
     currentSessionId = 'claude_session_' + Date.now();
+    conversationHistory = [];
     await fetch((BACKEND_URL ? BACKEND_URL.replace(/\/+$/, '') : '') + '/api/clear', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -82,7 +84,8 @@ document.addEventListener('DOMContentLoaded', () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           query: text,
-          session_id: currentSessionId
+          session_id: currentSessionId,
+          history: conversationHistory.slice(-8)
         })
       });
 
@@ -120,6 +123,12 @@ document.addEventListener('DOMContentLoaded', () => {
       assistantUi.thinkingDot.style.backgroundColor = '#6d6b65';
       assistantUi.thinkingTitle.textContent = `Thought for ${durationSec}s`;
       assistantUi.thinkingBox.classList.add('collapsed');
+
+      // Update client-side conversation history for seamless multi-turn context
+      if (markdownOutput.trim().length > 0) {
+        conversationHistory.push({ role: 'user', content: text });
+        conversationHistory.push({ role: 'assistant', content: markdownOutput });
+      }
 
     } catch (err) {
       console.error('Error:', err);

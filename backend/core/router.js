@@ -104,7 +104,20 @@ ANGLE 6: [Query 6]
       }
     }
 
-    if (angles.length >= 3) {
+    if (angles.length >= 2) {
+      // Auto-pad to minimum 5
+      const baseQ = userQuery.replace(/^(hey|hi|hello|tell me|mujhe|batao|kripya)\s*/i, '').trim();
+      const extraList = [
+        `${baseQ} top rated recommendations`,
+        `best similar alternatives like ${baseQ}`,
+        `hidden gems and psychological thrillers like ${baseQ}`,
+        `${baseQ} mystery survival show comparisons`,
+        `community discussion and must watch series like ${baseQ}`
+      ];
+      for (const extra of extraList) {
+        if (angles.length >= 5) break;
+        if (!angles.includes(extra)) angles.push(extra);
+      }
       return {
         needs_search: true,
         reason: "Multi-perspective investigation",
