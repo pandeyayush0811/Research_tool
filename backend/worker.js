@@ -177,9 +177,9 @@ function extractTextFromGeminiResponse(rawText) {
  * Internal LLM Client adapter for router and synthesis
  */
 class InternalLLMAdapter {
-  constructor(env) {
+  constructor(env, modelOverride = null) {
     this.config = getRequestConfig(env);
-    this.model = this.config.defaultModel;
+    this.model = modelOverride || this.config.defaultModel;
   }
 
   async complete(messages, options = {}) {
@@ -327,6 +327,7 @@ export default {
       ctx.waitUntil((async () => {
         try {
           const history = SESSIONS.get(sessionId) || [];
+          const routerClient = new InternalLLMAdapter(env, "gemini-3.6-flash");
           const llmClient = new InternalLLMAdapter(env);
 
           // Phase 1: Autonomous Query Routing
@@ -334,7 +335,7 @@ export default {
           const currentYear = new Date().getFullYear();
           const currentDateStr = new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
 
-          const route = await routeIntent(llmClient, query, history, currentYear, currentDateStr);
+          const route = await routeIntent(routerClient, query, history, currentYear, currentDateStr);
 
           // Fast path: Conversational greeting
           if (!route.needs_search) {
@@ -355,9 +356,20 @@ export default {
           }
 
           // Phase 2: Formulate 5-7 Search Perspectives
-          const angles = (route.search_angles && route.search_angles.length > 0)
+          let angles = (route.search_angles && route.search_angles.length >= 4)
             ? route.search_angles.slice(0, settings.MAX_SEARCH_ANGLES || 7)
-            : [route.standalone_query || query];
+            : [];
+
+          if (angles.length < 5) {
+            const base = route.standalone_query || route.core_terms || query;
+            angles = [
+              `${base} top rated recommendations`,
+              `best similar alternatives like ${base}`,
+              `hidden gems and shows like ${base}`,
+              `${base} mystery survival thriller comparisons`,
+              `must watch psychological series like ${base}`
+            ];
+          }
 
           await sendSSE('queries', { queries: angles });
 

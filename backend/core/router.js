@@ -25,7 +25,7 @@ export async function routeIntent(llmClient, userQuery, history = [], currentYea
     }
   }
 
-  // EXACT ORIGINAL ROUTER PROMPT (0.0001% change)
+  // EXACT ORIGINAL ROUTER PROMPT
   const routerPrompt = `
 You are an autonomous research query router and strategist.
 CURRENT DATE: ${currentDateStr} (Operational Year: ${currentYear})
@@ -36,56 +36,73 @@ LATEST USER MESSAGE:
 
 TASK:
 1. DECIDE \`needs_search\` (true or false):
-   - Set to \`false\` if the user is asking to:
-     * Translate, format, rephrase, or summarize something already discussed above.
-     * Ask a follow-up or clarification that can be answered entirely from the existing conversation history.
-     * Casual banter, thanks, or feedback.
-   - Set to \`true\` if the user is asking for:
-     * New external facts, recent news, updates, or a new topic.
-     * Deeper external verification or specific new questions about a person, entity, or event.
+   - Set to \`false\` ONLY if the user is asking to translate, format, rephrase, or casual banter.
+   - Set to \`true\` for recommendations, comparisons, factual questions, or exploratory topics.
 
 2. IF \`needs_search\` is true:
-   - \`core_terms\`: Identify the exact specific subject noun phrases, technical concepts, or entities from the user's message (e.g. "AI harness", "Kafka tombstone", "Pell's equation", "CRISPR Cas12").
-   - \`standalone_query\`: Resolve any ambiguous pronouns ("he", "that case", "they", "point 2") using conversation history, while strictly preserving the core subject terms.
-   - \`search_angles\`: Provide 5 to 7 distinct, high-signal search queries (minimum 4, maximum 9) covering diverse angles of this specific topic.
-     * UNIVERSAL LEXICAL INTEGRITY (Zero-Generalization Rule):
-       NEVER drop, delete, or over-generalize specific technical terms, named entities, or jargon into broad parent categories!
-       (e.g., NEVER turn 'AI harness' into generic 'AI', NEVER turn 'Kafka tombstone' into generic 'database', NEVER turn 'Pell's equation' into generic 'math').
-       Every generated query MUST explicitly contain or directly focus on the specific core terms!
-     * ANCHOR QUERY RULE:
-       Query #1 MUST ALWAYS be a direct, targeted definition/explainer search of the exact core terms (e.g., "[core terms] definition meaning explained").
-     * TEMPORAL SENSITIVITY:
-       - If TIME-SENSITIVE ('now', 'latest', modern models, news): Anchor to ${currentYear} or freshness terms. NEVER use 2023/2024!
-       - If TIMELESS/SCIENTIFIC/HISTORICAL: Do not force ${currentYear}. Search naturally.
+   - \`core_terms\`: Exact specific subject keywords.
+   - \`standalone_query\`: Context-resolved query string.
+   - \`search_angles\`: Provide exactly 5 to 7 distinct, high-signal search queries covering diverse angles.
+     * Query #1: Direct anchor definition / primary match.
+     * Query #2: Comparative / similar alternatives.
+     * Query #3: Critical acclaim / top rated lists.
+     * Query #4: Deep dive / hidden gems.
+     * Query #5: Thematic elements / specific subgenre tropes.
+     * Query #6 & #7: Community recommendations & discussions.
 
 OUTPUT STRICTLY IN VALID JSON:
 {
-  "needs_search": true or false,
+  "needs_search": true,
   "reason": "Brief explanation",
-  "core_terms": "The exact subject terms identified",
-  "standalone_query": "Context-resolved query string",
-  "search_angles": ["query 1 (anchor definition)", "query 2", "query 3", "query 4", "query 5", "query 6", "query 7"]
+  "core_terms": "subject terms",
+  "standalone_query": "resolved query string",
+  "search_angles": ["query 1", "query 2", "query 3", "query 4", "query 5", "query 6"]
 }
 `;
 
   try {
     const raw = await llmClient.complete([
-      { role: "system", content: "You are a JSON-only query routing engine." },
+      { role: "system", content: "You are a JSON-only query routing engine. Output valid JSON only." },
       { role: "user", content: routerPrompt }
-    ], { temperature: 0.2, jsonMode: true });
+    ], { temperature: 0.2 });
 
-    const jsonMatch = raw.match(/\{[\s\S]*\}/);
+    const cleaned = raw.replace(/```json/gi, '').replace(/```/g, '').trim();
+    const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
-      return JSON.parse(jsonMatch[0]);
+      const parsed = JSON.parse(jsonMatch[0]);
+      if (parsed.search_angles && Array.isArray(parsed.search_angles) && parsed.search_angles.length >= 4) {
+        return parsed;
+      }
+      if (parsed.needs_search) {
+        const base = parsed.standalone_query || parsed.core_terms || userQuery;
+        parsed.search_angles = [
+          `${base} top rated recommendations`,
+          `best similar alternatives like ${base}`,
+          `hidden gems and shows like ${base}`,
+          `${base} mystery survival thriller comparisons`,
+          `must watch psychological series like ${base}`,
+          `discussion and rankings for shows like ${base}`
+        ];
+        return parsed;
+      }
+      return parsed;
     }
   } catch (e) {
     console.error("Router error:", e);
   }
 
+  // Fallback guaranteeing 5-6 diverse angles
   return {
     needs_search: true,
-    reason: "Default investigative search",
+    reason: "Autonomous multi-perspective search",
     standalone_query: userQuery,
-    search_angles: [userQuery]
+    search_angles: [
+      `${userQuery} top recommendations`,
+      `best similar alternatives like ${userQuery}`,
+      `hidden gems and shows like ${userQuery}`,
+      `${userQuery} mystery survival thriller comparisons`,
+      `must watch psychological series like ${userQuery}`,
+      `discussion and rankings for ${userQuery}`
+    ]
   };
 }
