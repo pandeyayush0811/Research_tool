@@ -1,10 +1,9 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "deep-research-engine",
+  "name": "research-tool",
   "main": "worker.js",
   "compatibility_date": "2026-03-01",
   "vars": {
-    "GEMINI_PROXY_URL": "https://your-gemini-worker.workers.dev/v1",
-    "GEMINI_PROXY_MODEL": "gemini-3.7-flash"
+    "DEFAULT_MODEL": "gemini-3.1-pro"
   }
 }
