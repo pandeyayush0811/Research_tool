@@ -1,11 +1,8 @@
 /**
- * Unified Cloudflare Worker:
- * 1. Deep Research Agent Pipeline (/api/research/stream)
- * 2. OpenAI-compatible Gemini Web2API (/v1/chat/completions)
- * 3. Health & Diagnostics (/api/health)
- *
- * Single-worker architecture: zero external network hops, zero DNS 1016 errors,
- * automatic XSRF recovery, and authenticated Gemini Pro support.
+ * Unified Cloudflare Worker: Smart Two-Tier Hybrid Architecture.
+ * 1. Tier 1 (Guest Flash Router - No Cookie): 0 history pollution, fast 5-7 query generation.
+ * 2. High-yield Edge Crawler: Video link filtering + dense text scraping.
+ * 3. Tier 2 (Authenticated Pro Synthesis - With Cookie): Pro model reasoning with citations.
  */
 
 import { routeIntent } from './core/router.js';
@@ -21,11 +18,9 @@ const CORS_HEADERS = {
   'Access-Control-Max-Age': '86400',
 };
 
-// In-memory global state
 let CACHED_XSRF = null;
 const SESSIONS = new Map();
 
-// Supported models mapping
 const MODELS = {
   'gemini-3.1-pro': { mode: 3, think: 4, desc: 'Pro model (highest reasoning & deep synthesis)' },
   'gemini-3.5-flash-thinking': { mode: 2, think: 0, desc: 'Deep thinking mode (~20k tokens output)' },
@@ -34,7 +29,6 @@ const MODELS = {
   'gemini-flash-lite': { mode: 6, think: 4, desc: 'Lightweight high-speed model' },
 };
 
-// User agents for browser fingerprinting
 const USER_AGENTS = [
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36',
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36',
@@ -130,12 +124,10 @@ async function callGeminiStreamGenerate(prompt, modelName, config, retryCount = 
 
   const text = await resp.text();
 
-  // Auto-healing: If 400 Bad Request contains xsrf token, capture it and retry immediately
   if (resp.status === 400 && text.includes('xsrf') && retryCount < 2) {
     const xsrfMatch = text.match(/\["xsrf","([^"]+)"/);
     if (xsrfMatch && xsrfMatch[1]) {
       CACHED_XSRF = xsrfMatch[1];
-      console.log('⚡ Auto-extracted and cached Gemini XSRF token:', CACHED_XSRF);
       return callGeminiStreamGenerate(prompt, modelName, config, retryCount + 1);
     }
   }
@@ -167,19 +159,23 @@ function extractTextFromGeminiResponse(rawText) {
     }
   }
 
-  // Clean code execution artifacts
   return finalResponse
     .replace(/```(?:python|javascript|text)\?code_(?:reference|stdout)&code_event_index=\d+\n[\s\S]*?```\n?/g, '')
     .trim();
 }
 
 /**
- * Internal LLM Client adapter for router and synthesis
+ * Internal LLM Client adapter with explicit Cookie toggle:
+ * useCookie = false -> Guest anonymous mode (ideal for router/queries, 0 account pollution)
+ * useCookie = true  -> Authenticated Pro mode (ideal for synthesis)
  */
 class InternalLLMAdapter {
-  constructor(env, modelOverride = null) {
+  constructor(env, modelOverride = null, useCookie = true) {
     this.config = getRequestConfig(env);
     this.model = modelOverride || this.config.defaultModel;
+    if (!useCookie) {
+      this.config = { ...this.config, cookieString: null };
+    }
   }
 
   async complete(messages, options = {}) {
@@ -193,7 +189,6 @@ class InternalLLMAdapter {
     const raw = await callGeminiStreamGenerate(prompt, this.model, this.config);
     const fullText = extractTextFromGeminiResponse(raw);
 
-    // Realistic typewriter token streamer
     const words = fullText.split(' ');
     for (let i = 0; i < words.length; i++) {
       yield (i === 0 ? '' : ' ') + words[i];
@@ -213,11 +208,10 @@ export default {
     const url = new URL(request.url);
     const config = getRequestConfig(env);
 
-    // 1. Health check
     if (url.pathname === '/api/health') {
       return new Response(JSON.stringify({
         status: 'online',
-        service: 'Unified Deep Research Edge Engine',
+        service: 'Unified Two-Tier Deep Research Engine',
         model: config.defaultModel,
         authenticated: !!config.cookieString,
         xsrfCached: !!CACHED_XSRF,
@@ -233,7 +227,7 @@ export default {
       });
     }
 
-    // 2. OpenAI-compatible /v1/chat/completions endpoint
+    // OpenAI Chat Completions API endpoint
     if (url.pathname === '/v1/chat/completions' && request.method === 'POST') {
       try {
         const body = await request.json();
@@ -242,38 +236,6 @@ export default {
         const prompt = messages.map(m => `${m.role.toUpperCase()}: ${m.content}`).join('\n\n');
         const raw = await callGeminiStreamGenerate(prompt, model, config);
         const text = extractTextFromGeminiResponse(raw);
-
-        if (body.stream) {
-          const { readable, writable } = new TransformStream();
-          const writer = writable.getWriter();
-          const encoder = new TextEncoder();
-          const chatId = 'chatcmpl-' + crypto.randomUUID().slice(0, 8);
-
-          (async () => {
-            const words = text.split(' ');
-            for (let i = 0; i < words.length; i++) {
-              const chunk = {
-                id: chatId,
-                object: 'chat.completion.chunk',
-                created: Math.floor(Date.now() / 1000),
-                model,
-                choices: [{ delta: { content: (i === 0 ? '' : ' ') + words[i] }, finish_reason: null }]
-              };
-              await writer.write(encoder.encode(`data: ${JSON.stringify(chunk)}\n\n`));
-              await new Promise(r => setTimeout(r, 12));
-            }
-            await writer.write(encoder.encode(`data: [DONE]\n\n`));
-            await writer.close();
-          })();
-
-          return new Response(readable, {
-            headers: {
-              ...CORS_HEADERS,
-              'Content-Type': 'text/event-stream; charset=utf-8',
-              'Cache-Control': 'no-cache',
-            }
-          });
-        }
 
         return new Response(JSON.stringify({
           id: 'chatcmpl-' + crypto.randomUUID().slice(0, 8),
@@ -292,7 +254,7 @@ export default {
       }
     }
 
-    // 3. Deep Research SSE Stream endpoint (/api/research/stream)
+    // Deep Research SSE Stream endpoint (/api/research/stream)
     if (url.pathname === '/api/research/stream' && request.method === 'POST') {
       let body;
       try {
@@ -327,28 +289,28 @@ export default {
       ctx.waitUntil((async () => {
         try {
           const history = SESSIONS.get(sessionId) || [];
-          const routerClient = new InternalLLMAdapter(env, "gemini-3.6-flash");
-          const llmClient = new InternalLLMAdapter(env);
-
-          // Phase 1: Autonomous Query Routing
-          await sendSSE('status', { message: 'Analyzing query & conversation context...' });
+          
+          // Phase 1: Tier 1 - Anonymous Guest Router (No Cookie -> Zero History Pollution)
+          await sendSSE('stage', { text: 'Analyzing query & conversation context...' });
           const currentYear = new Date().getFullYear();
           const currentDateStr = new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
 
+          const routerClient = new InternalLLMAdapter(env, "gemini-3.6-flash", false);
           const route = await routeIntent(routerClient, query, history, currentYear, currentDateStr);
 
-          // Fast path: Conversational greeting
+          // Fast path: Casual greeting
           if (!route.needs_search) {
-            await sendSSE('status', { message: `Direct answer: ${route.reason || 'Conversational query.'}` });
-            await sendSSE('status', { message: 'Generating direct response from memory...' });
+            await sendSSE('router', { needs_search: false, reason: route.reason || 'Conversational query.' });
+            await sendSSE('stage', { text: 'Generating direct response from memory...' });
 
             const directMessages = [
               ...history.slice(-4),
               { role: 'user', content: query }
             ];
 
-            for await (const chunk of llmClient.stream(directMessages)) {
-              await sendSSE('token', { text: chunk });
+            const directClient = new InternalLLMAdapter(env, "gemini-3.1-pro", true);
+            for await (const chunk of directClient.stream(directMessages)) {
+              await sendSSE('token', chunk);
             }
 
             await sendSSE('complete', { status: 'success' });
@@ -356,25 +318,20 @@ export default {
           }
 
           // Phase 2: Formulate 5-7 Search Perspectives
-          let angles = (route.search_angles && route.search_angles.length >= 4)
+          const angles = (route.search_angles && route.search_angles.length >= 3)
             ? route.search_angles.slice(0, settings.MAX_SEARCH_ANGLES || 7)
-            : [];
+            : [
+                `${query} top rated recommendations`,
+                `best similar alternatives like ${query}`,
+                `hidden gems and psychological thrillers like ${query}`,
+                `${query} mystery survival show comparisons`,
+                `community discussion and must watch series like ${query}`
+              ];
 
-          if (angles.length < 5) {
-            const base = route.standalone_query || route.core_terms || query;
-            angles = [
-              `${base} top rated recommendations`,
-              `best similar alternatives like ${base}`,
-              `hidden gems and shows like ${base}`,
-              `${base} mystery survival thriller comparisons`,
-              `must watch psychological series like ${base}`
-            ];
-          }
+          await sendSSE('queries', { angles, queries: angles });
 
-          await sendSSE('queries', { queries: angles });
-
-          // Phase 3: High-Concurrency Live Search
-          await sendSSE('status', { message: `Dispatching ${angles.length} search angles across edge workers...` });
+          // Phase 3: High-Concurrency Live Search (With Video Filter)
+          await sendSSE('stage', { text: `Dispatching ${angles.length} search angles across edge workers...` });
           const searchPromises = angles.map(q => liveSearch(q, settings.MAX_PER_QUERY || 5));
           const searchResultsArrays = await Promise.all(searchPromises);
 
@@ -392,34 +349,34 @@ export default {
             });
           });
 
-          await sendSSE('status', { message: `Discovered ${harvestQueue.length} authoritative sources. Starting parallel extraction...` });
+          await sendSSE('stage', { text: `Discovered ${harvestQueue.length} authoritative sources. Starting parallel extraction...` });
 
-          // Phase 4: Parallel Deep Extraction via Jina Reader
+          // Phase 4: Parallel Deep Extraction with Fallback
           const topDocsToScrape = harvestQueue.slice(0, (settings.MAX_WORKERS || 5) * 2);
           const scrapePromises = topDocsToScrape.map(async (doc) => {
-            await sendSSE('source', { title: doc.title, url: doc.url });
+            await sendSSE('scraped_page', { title: doc.title, url: doc.url });
             const content = await scrapePage(doc.url, settings.MAX_CHARS || 12000);
             return content ? { ...doc, content } : null;
           });
 
           const scrapedDocs = (await Promise.all(scrapePromises)).filter(Boolean);
 
-          await sendSSE('status', { message: `Harvested ${scrapedDocs.length} dense evidence records. Synthesizing comprehensive intelligence...` });
+          await sendSSE('stage', { text: `Harvested ${scrapedDocs.length} dense evidence records. Synthesizing comprehensive intelligence...` });
 
-          // Phase 5: Synthesis with Adaptive Depth & Citations
+          // Phase 5: Tier 2 - Authenticated Pro Synthesis (With Cookie -> Full Reasoning)
           const synthesisPrompt = buildSynthesisPrompt(query, scrapedDocs, history, currentYear, currentDateStr);
           const synthesisMessages = [
             { role: 'system', content: 'You are an elite, objective research investigator and synthesizer.' },
             { role: 'user', content: synthesisPrompt }
           ];
 
+          const proClient = new InternalLLMAdapter(env, "gemini-3.1-pro", true);
           let fullResponse = '';
-          for await (const chunk of llmClient.stream(synthesisMessages)) {
+          for await (const chunk of proClient.stream(synthesisMessages)) {
             fullResponse += chunk;
-            await sendSSE('token', { text: chunk });
+            await sendSSE('token', chunk);
           }
 
-          // Update session memory
           history.push({ role: 'user', content: query });
           history.push({ role: 'assistant', content: fullResponse });
           SESSIONS.set(sessionId, history.slice(-10));

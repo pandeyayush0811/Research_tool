@@ -1,11 +1,24 @@
 /**
  * Multi-provider Parallel Search Tool for Cloudflare Edge.
- * Supports Jina Search (s.jina.ai) and DuckDuckGo HTML API without rate limits.
+ * Filters out video and non-text URLs to ensure high-yield text scraping.
  */
 
+const JUNK_DOMAINS = [
+  'youtube.com', 'youtu.be', 'tiktok.com', 'instagram.com', 'facebook.com', 'pinterest.com', 'twitter.com', 'x.com'
+];
+
+function isTextRichUrl(url) {
+  if (!url || typeof url !== 'string') return false;
+  const lower = url.toLowerCase();
+  for (const dom of JUNK_DOMAINS) {
+    if (lower.includes(dom)) return false;
+  }
+  return true;
+}
+
 export async function liveSearch(query, maxResults = 5) {
+  // 1. Try Jina AI Search
   try {
-    // 1. Try Jina AI Search (Clean JSON for AI agents, no rate limits on Edge)
     const jinaUrl = `https://s.jina.ai/${encodeURIComponent(query)}`;
     const resp = await fetch(jinaUrl, {
       headers: {
@@ -17,11 +30,15 @@ export async function liveSearch(query, maxResults = 5) {
     if (resp.ok) {
       const data = await resp.json();
       if (data && data.data && Array.isArray(data.data)) {
-        return data.data.slice(0, maxResults).map(item => ({
-          title: item.title || query,
-          url: item.url,
-          snippet: item.description || item.content?.slice(0, 300) || ''
-        }));
+        const filtered = data.data
+          .filter(item => item.url && isTextRichUrl(item.url))
+          .slice(0, maxResults)
+          .map(item => ({
+            title: item.title || query,
+            url: item.url,
+            snippet: item.description || item.content?.slice(0, 300) || ''
+          }));
+        if (filtered.length > 0) return filtered;
       }
     }
   } catch (e) {
@@ -41,7 +58,6 @@ export async function liveSearch(query, maxResults = 5) {
       const html = await resp.text();
       const results = [];
       const linkRegex = /<a class="result__url"[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/g;
-      const titleRegex = /<a class="result__snippet"[^>]*>([\s\S]*?)<\/a>/g;
       
       let match;
       while ((match = linkRegex.exec(html)) !== null && results.length < maxResults) {
@@ -50,7 +66,7 @@ export async function liveSearch(query, maxResults = 5) {
           const parts = rawUrl.split('uddg=');
           if (parts[1]) rawUrl = decodeURIComponent(parts[1].split('&')[0]);
         }
-        if (rawUrl.startsWith('http')) {
+        if (rawUrl.startsWith('http') && isTextRichUrl(rawUrl)) {
           results.push({
             title: match[2]?.replace(/<[^>]*>/g, '').trim() || query,
             url: rawUrl,
