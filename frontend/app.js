@@ -1,9 +1,6 @@
 // Production Vercel Client - Deep Research AI
-// Can point to your Cloudflare Worker URL or relative endpoint
-// Production Vercel Client - Deep Research AI
-// Points to Cloudflare Worker in production, or localhost:8787 in local development
-const BACKEND_URL = localStorage.getItem('dr_backend_url') || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:8787' : '');
-
+// Connected to your live Cloudflare Edge Worker
+const BACKEND_URL = localStorage.getItem('dr_backend_url') || 'https://research-tool.pandeyayush0811.workers.dev';
 // Claude-style Minimal Web Client for Deep Research
 document.addEventListener('DOMContentLoaded', () => {
   const userInput = document.getElementById('userInput');
