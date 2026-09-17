@@ -1,0 +1,13 @@
+{
+  "name": "deep-research-edge-backend",
+  "version": "2.0.0",
+  "description": "Modular Deep Research Agent on Cloudflare Workers",
+  "main": "worker.js",
+  "type": "module",
+  "scripts": {
+    "deploy": "wrangler deploy"
+  },
+  "dependencies": {
+    "duck-duck-scrape": "^2.2.7"
+  }
+}

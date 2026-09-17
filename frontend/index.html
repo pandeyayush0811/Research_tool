@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Deep Research AI</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github-dark.min.css">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+</head>
+<body>
+  <div class="app-layout">
+    <!-- Top Minimal Bar -->
+    <header class="navbar">
+      <div class="brand">
+        <span class="brand-name">Deep Research</span>
+      </div>
+      <div class="nav-right">
+        <button class="icon-action-btn" id="newChatBtn" title="New Chat">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 5v14M5 12h14"/>
+          </svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Chat Container -->
+    <main class="chat-container" id="chatContainer">
+      <!-- Empty State Hero -->
+      <div class="empty-hero" id="emptyHero">
+        <div class="hero-logo">Claude-style Research</div>
+        <h1 class="hero-heading">What would you like to explore today?</h1>
+        <p class="hero-sub">Autonomous multi-angle search, deep web scraping, and grounded answers.</p>
+      </div>
+
+      <!-- Messages Thread -->
+      <div class="conversation" id="conversation"></div>
+    </main>
+
+    <!-- Input Bar -->
+    <footer class="input-region">
+      <div class="input-card">
+        <textarea
+          id="userInput"
+          placeholder="Ask anything or request deep research..."
+          rows="1"
+          autofocus
+        ></textarea>
+        <div class="input-bottom">
+          <span class="status-hint" id="statusHint">Grounded with live web search</span>
+          <button class="send-button" id="sendButton" disabled title="Send message">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="12" y1="19" x2="12" y2="5"></line>
+              <polyline points="5 12 12 5 19 12"></polyline>
+            </svg>
+          </button>
+        </div>
+      </div>
+    </footer>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,13 @@
+{
+  "_about": "\u2699\ufe0f DEEP RESEARCH ENGINE CONFIGURATION & LIMITS",
+  "MAX_PER_QUERY": 5,
+  "_desc_MAX_PER_QUERY": "Top links to harvest per search angle. 3 means top 3 authoritative URLs per query (Default: 3)",
+  "MAX_WORKERS": 4,
+  "_desc_MAX_WORKERS": "Number of parallel scraper threads running concurrently via Jina Reader (Default: 5)",
+  "MAX_CHARS": 12000,
+  "_desc_MAX_CHARS": "Maximum character limit extracted per webpage to keep content dense and avoid bloat (Default: 12000)",
+  "MIN_SEARCH_ANGLES": 5,
+  "_desc_MIN_SEARCH_ANGLES": "Minimum search perspectives formulated by the Router for diverse multi-angle coverage (Default: 5)",
+  "MAX_SEARCH_ANGLES": 7,
+  "_desc_MAX_SEARCH_ANGLES": "Maximum search perspectives formulated by the Router (Default: 7, allows up to 9 for complex topics)"
+}

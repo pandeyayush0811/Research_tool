@@ -1,0 +1,19 @@
+# Dependencies
+node_modules/
+package-lock.json
+
+# Python cache & virtual environments
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.env
+
+# Build & Logs
+dist/
+.wrangler/
+*.log
+
+# Operating System files
+.DS_Store
+Thumbs.db
