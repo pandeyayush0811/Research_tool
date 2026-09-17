@@ -348,8 +348,8 @@ export default {
           await sendSSE('queries', { angles, queries: angles });
 
           // Phase 3: High-Concurrency Live Search (With Video Filter)
-          await sendSSE('stage', { text: `Dispatching ${angles.length} search angles across edge workers...` });
-          const searchPromises = angles.map(q => liveSearch(q, settings.MAX_PER_QUERY || 5));
+          await sendSSE('stage', { text: `Searching across ${angles.length} perspectives...` });
+          const searchPromises = angles.map(q => liveSearch(q, env.JINA_API_KEY || null, settings.MAX_PER_QUERY || 5));
           const searchResultsArrays = await Promise.all(searchPromises);
 
           // Deduplicate harvested links
@@ -366,19 +366,19 @@ export default {
             });
           });
 
-          await sendSSE('stage', { text: `Discovered ${harvestQueue.length} authoritative sources. Starting parallel extraction...` });
+          await sendSSE('stage', { text: `Scraping ${topDocsToScrape.length} unique sources in parallel...` });
 
           // Phase 4: Parallel Deep Extraction with Fallback
           const topDocsToScrape = harvestQueue.slice(0, (settings.MAX_WORKERS || 5) * 2);
           const scrapePromises = topDocsToScrape.map(async (doc) => {
             await sendSSE('scraped_page', { title: doc.title, url: doc.url });
-            const content = await scrapePage(doc.url, settings.MAX_CHARS || 12000);
+            const content = await scrapePage(doc.url, env.JINA_API_KEY || null, settings.MAX_CHARS || 12000);
             return content ? { ...doc, content } : null;
           });
 
           const scrapedDocs = (await Promise.all(scrapePromises)).filter(Boolean);
 
-          await sendSSE('stage', { text: `Harvested ${scrapedDocs.length} dense evidence records. Synthesizing comprehensive intelligence...` });
+          await sendSSE('stage', { text: `Synthesizing report from ${scrapedDocs.length} evidence sources...` });
 
           // Phase 5: Tier 2 - Authenticated Pro Synthesis (With Cookie -> Full Reasoning)
           const synthesisPrompt = buildSynthesisPrompt(query, scrapedDocs, history, currentYear, currentDateStr);
