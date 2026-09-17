@@ -5,8 +5,17 @@
  * Layer 3: Graceful Skip (Never hangs or blocks)
  */
 
-export async function scrapePage(url, maxChars = 12000, jinaApiKey = null) {
+export async function scrapePage(url, jinaApiKey = null, maxChars = 12000) {
   if (!url || typeof url !== 'string' || !url.startsWith('http')) return '';
+
+  // Handle argument swapping gracefully
+  let key = jinaApiKey;
+  let limit = maxChars;
+  if (typeof jinaApiKey === 'number') {
+    limit = jinaApiKey;
+    key = (typeof maxChars === 'string') ? maxChars : null;
+  }
+  const safeLimit = (typeof limit === 'number' && limit > 0) ? limit : 12000;
 
   // Skip video and social domains that don't have text articles
   if (/youtube\.com|youtu\.be|tiktok\.com|instagram\.com|facebook\.com/i.test(url)) {
@@ -23,8 +32,8 @@ export async function scrapePage(url, maxChars = 12000, jinaApiKey = null) {
       'X-Timeout': '4',
       'X-No-Cache': 'true'
     };
-    if (jinaApiKey) {
-      headers['Authorization'] = `Bearer ${jinaApiKey.trim()}`;
+    if (key && typeof key === 'string' && key.trim()) {
+      headers['Authorization'] = `Bearer ${key.trim()}`;
     }
 
     const controller = new AbortController();
@@ -40,11 +49,11 @@ export async function scrapePage(url, maxChars = 12000, jinaApiKey = null) {
     if (resp && resp.ok) {
       const text = await resp.text();
       if (text && text.length > 200 && !text.includes('Warning: Target URL returned error')) {
-        return text.length > maxChars ? text.slice(0, maxChars) + '\n\n... [Truncated]' : text;
+        return text.length > safeLimit ? text.slice(0, safeLimit) + '\n\n... [Truncated]' : text;
       }
     }
   } catch (err) {
-    // Timeout or network blip -> proceed directly to Layer 2
+    // Timeout or network error -> proceed directly to Layer 2
   }
 
   // 2. Layer 2: Direct Fast HTML Fetch
@@ -78,7 +87,7 @@ export async function scrapePage(url, maxChars = 12000, jinaApiKey = null) {
         .trim();
 
       if (cleanText.length > 250) {
-        return cleanText.length > maxChars ? cleanText.slice(0, maxChars) + '\n\n... [Truncated]' : cleanText;
+        return cleanText.length > safeLimit ? cleanText.slice(0, safeLimit) + '\n\n... [Truncated]' : cleanText;
       }
     }
   } catch (e) {}
