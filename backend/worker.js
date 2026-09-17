@@ -366,10 +366,9 @@ export default {
             });
           });
 
-          await sendSSE('stage', { text: `Scraping ${topDocsToScrape.length} unique sources in parallel...` });
-
           // Phase 4: Parallel Deep Extraction with Fallback
           const topDocsToScrape = harvestQueue.slice(0, (settings.MAX_WORKERS || 5) * 2);
+          await sendSSE('stage', { text: `Scraping ${topDocsToScrape.length} unique sources in parallel...` });
           const scrapePromises = topDocsToScrape.map(async (doc) => {
             await sendSSE('scraped_page', { title: doc.title, url: doc.url });
             const content = await scrapePage(doc.url, env.JINA_API_KEY || null, settings.MAX_CHARS || 12000);
